@@ -14,9 +14,8 @@ import os
 import uuid
 
 
-MCAST_ADDR_V4 = '224.0.0.1' 
-MCAST_ADDR_V6 = 'FF02::1' 
-DEFAULT_PORT  = 5007
+MCAST_ADDR_V4 = '224.0.1.0' 
+DEFAULT_PORT  = 31001
 DEFAULT_INTERVAL = 5.0
 DEFAULT_TTL = 10
 
@@ -59,28 +58,6 @@ def init_v4_tx_fd(ttl, addr=None):
     return sock
 
 
-def init_v6_rx_fd(addr=None, port=DEFAULT_PORT):
-    addrinfo = socket.getaddrinfo(addr, None)[0]
-    sock = socket.socket(addrinfo[0], socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    if hasattr(sock, "SO_REUSEPORT"):
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-
-    sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_LOOP, MCAST_LOOP)
-
-    sock.bind(('', port))
-    group_bin = socket.inet_pton(addrinfo[0], addrinfo[4][0])
-    mreq = group_bin + struct.pack('@I', 0)
-    sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
-    return sock
-
-
-def init_v6_tx_fd(ttl):
-    addrinfo = socket.getaddrinfo(MCAST_ADDR_V6, None)[0]
-    sock = socket.socket(addrinfo[0], socket.SOCK_DGRAM)
-    sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_HOPS, ttl)
-    return sock
-
 def cb_v4_rx(fd, queue):
     try:
         data, addr = fd.recvfrom(1024)
@@ -97,20 +74,6 @@ def cb_v4_rx(fd, queue):
     except asyncio.queues.QueueFull:
         sys.stderr.write("queue overflow, strange things happens")
 
-
-def cb_v6_rx(fd, queue):
-    try:
-        data, addr = fd.recvfrom(1024)
-    except socket.error as e:
-        print('Expection')
-    d = []
-    d.append("IPv6")
-    d.append(data)
-    d.append(addr)
-    try:
-        queue.put_nowait(d)
-    except asyncio.queues.QueueFull:
-        sys.stderr.write("queue overflow, strange things happens")
 
 def create_payload():
     ident = IDENT
@@ -153,15 +116,6 @@ async def tx_v4(fd, addr=None, port=DEFAULT_PORT, interval=None):
         await asyncio.sleep(interval)
 
 
-async def tx_v6(fd, addr=None, port=DEFAULT_PORT, interval=None):
-    while True:
-        try:
-            data = create_payload()
-            fd.sendto(data, (addr, port))
-        except Exception as e:
-            print(str(e))
-        await asyncio.sleep(interval)
-
 
 def update_db(dbx, message_ok, msg, raw_msg, cookie):
     if not message_ok:
@@ -174,9 +128,6 @@ def update_db(dbx, message_ok, msg, raw_msg, cookie):
     proto = msg[0]
     ip_src_addr = msg[2][0]
     ip_src_port = msg[2][1]
-    if msg[0] == "IPv6":
-        ip_src_flow_info = msg[2][2]
-        ip_src_scope_id  = msg[2][3]
 
     db = dbx['data']
     if ip_src_addr not in db:
@@ -187,10 +138,6 @@ def update_db(dbx, message_ok, msg, raw_msg, cookie):
     db[ip_src_addr]['last-seen'] = time.time()
     db[ip_src_addr]['received-messages'] += 1
     db[ip_src_addr]['source-ports'] = ip_src_port
-    if msg[0] == "IPv6":
-        db[ip_src_addr]['flow-info'] = msg[2][2]
-        db[ip_src_addr]['scope-id'] = msg[2][3]
-
 
 
 def display_time(seconds, granularity=2):
@@ -273,7 +220,6 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--v4addr", help="IPv4 mcast address (default: {})".format(MCAST_ADDR_V4), type=str, default=MCAST_ADDR_V4)
     parser.add_argument("--v4outaddr", help="IPv4 outgoing interface address (default: {})".format("None"), type=str, default=None)
-    parser.add_argument("--v6addr", help="IPv6 mcast address (default: {})".format(MCAST_ADDR_V6), type=str, default=MCAST_ADDR_V6)
     parser.add_argument("--port", help="TX/RX port (default: {})".format(DEFAULT_PORT), type=int, default=DEFAULT_PORT)
     parser.add_argument("--ttl", help="IPv46 TTL for transmission (default: {})".format(DEFAULT_TTL), type=int, default=DEFAULT_TTL)
     parser.add_argument("-i", "--interval", help="Time between transmission (default: {})".format(DEFAULT_INTERVAL), type=float, default=DEFAULT_INTERVAL)
@@ -291,15 +237,9 @@ def main():
     fd = init_v4_rx_fd(addr=args.v4addr, port=args.port)
     loop.add_reader(fd, functools.partial(cb_v4_rx, fd, queue))
 
-    fd = init_v6_rx_fd(addr=args.v6addr, port=args.port)
-    loop.add_reader(fd, functools.partial(cb_v6_rx, fd, queue))
-
     # TX side
     fd = init_v4_tx_fd(ttl=args.ttl, addr=args.v4outaddr)
     asyncio.ensure_future(tx_v4(fd, addr=args.v4addr, port=args.port, interval=args.interval))
-
-    fd = init_v6_tx_fd(ttl=args.ttl)
-    asyncio.ensure_future(tx_v6(fd, addr=args.v6addr, port=args.port, interval=args.interval))
 
     # Outputter
     asyncio.ensure_future(print_stats(queue))

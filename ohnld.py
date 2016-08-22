@@ -12,12 +12,8 @@ import argparse
 import signal
 import os
 import uuid
+import json
 
-
-MCAST_ADDR_V4 = '224.0.1.0' 
-DEFAULT_PORT  = 31001
-DEFAULT_INTERVAL = 5.0
-DEFAULT_TTL = 10
 
 # don't recognize own mcast transmissions
 # by default, can be changed for debugging
@@ -32,7 +28,7 @@ IDENT = "FOO".encode('ascii')
 SECRET_COOKIE = str.encode(str(uuid.uuid4()))
 
 
-def init_v4_rx_fd(addr=None, port=DEFAULT_PORT):
+def init_v4_rx_fd(conf):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     if hasattr(sock, "SO_REUSEPORT"):
@@ -40,27 +36,29 @@ def init_v4_rx_fd(addr=None, port=DEFAULT_PORT):
     
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, MCAST_LOOP)
     
-    sock.bind(('', port))
+    sock.bind(('', int(conf['core']['v4-port'])))
     host = socket.gethostbyname(socket.gethostname())
     sock.setsockopt(socket.SOL_IP, socket.IP_MULTICAST_IF, socket.inet_aton(host))
 
-    mreq = struct.pack("4sl", socket.inet_aton(addr), socket.INADDR_ANY)
+    mreq = struct.pack("4sl", socket.inet_aton(conf['core']['v4-addr']), socket.INADDR_ANY)
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
     return sock
 
 
-def init_v4_tx_fd(ttl, addr=None):
+def init_v4_tx_fd(conf):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
-    if addr:
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(addr))
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, int(conf['core']['v4-ttl']))
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(conf['core']['v4-out-addr']))
     return sock
 
 
 def cb_v4_rx(fd, queue):
     try:
-        data, addr = fd.recvfrom(1024)
+        #data, addr = fd.recvfrom(1024)
+        msg, ancdata, flags, addr = fd.recvmsg(1024, 100000)
+        print(ancdata)
+        return
     except socket.error as e:
         print('Expection')
     d = []
@@ -106,7 +104,10 @@ def parse_payload(raw):
     return True, False, None, cookie
 
 
-async def tx_v4(fd, addr=None, port=DEFAULT_PORT, interval=None):
+async def tx_v4(fd, conf):
+    addr     = conf['core']['v4-addr']
+    port     = int(conf['core']['v4-port'])
+    interval = float(conf['core']['tx-interval'])
     while True:
         try:
             data = create_payload()
@@ -164,6 +165,7 @@ def display_time(seconds, granularity=2):
 
 
 def print_db(db):
+    return
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
     OKGREEN = '\033[92m'
@@ -215,31 +217,42 @@ def ask_exit(signame, loop):
     sys.stderr.write("got signal %s: exit\n" % signame)
     loop.stop()
 
-
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--v4addr", help="IPv4 mcast address (default: {})".format(MCAST_ADDR_V4), type=str, default=MCAST_ADDR_V4)
-    parser.add_argument("--v4outaddr", help="IPv4 outgoing interface address (default: {})".format("None"), type=str, default=None)
-    parser.add_argument("--port", help="TX/RX port (default: {})".format(DEFAULT_PORT), type=int, default=DEFAULT_PORT)
-    parser.add_argument("--ttl", help="IPv46 TTL for transmission (default: {})".format(DEFAULT_TTL), type=int, default=DEFAULT_TTL)
-    parser.add_argument("-i", "--interval", help="Time between transmission (default: {})".format(DEFAULT_INTERVAL), type=float, default=DEFAULT_INTERVAL)
-    parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true")
-    return parser.parse_args()
+    parser.add_argument("--configuration", help="configuration", type=str, default=None)
+    args = parser.parse_args()
+    if not args.configuration:
+        print("Configuration required, please specify a valid file path, exiting now")
+        sys.exit(1)
+    return args
+
+def load_configuration_file(args):
+    with open(args.configuration) as json_data:
+        return json.load(json_data)
+
+
+def conf_init():
+    args = parse_args()
+    return load_configuration_file(args)
 
 
 def main():
-    args = parse_args()
+    conf = conf_init()
+
 
     loop = asyncio.get_event_loop()
     queue = asyncio.Queue(32)
 
     # RX functionality
-    fd = init_v4_rx_fd(addr=args.v4addr, port=args.port)
+    fd = init_v4_rx_fd(conf)
+
+
     loop.add_reader(fd, functools.partial(cb_v4_rx, fd, queue))
 
+
     # TX side
-    fd = init_v4_tx_fd(ttl=args.ttl, addr=args.v4outaddr)
-    asyncio.ensure_future(tx_v4(fd, addr=args.v4addr, port=args.port, interval=args.interval))
+    fd = init_v4_tx_fd(conf)
+    asyncio.ensure_future(tx_v4(fd, conf))
 
     # Outputter
     asyncio.ensure_future(print_stats(queue))

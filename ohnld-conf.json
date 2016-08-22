@@ -1,0 +1,29 @@
+{
+    "common" : {
+        "verbose" : "debug"
+    },
+
+    "core" : {
+        "tx-interval" : "10",
+        "validity-time" : "30",
+
+        "terminal-v4-addr": "192.168.1.1",
+
+        "v4-addr" : "224.0.1.0",
+        "v4-port" : "31001",
+        "v4-ttl"  : "10",
+        "v4-out-addr" : "172.16.1.100"
+    },
+
+    "update-ipc" : {
+        "dst-host"         : "localhost",
+        "dst-url"          : "/api/v1/data",
+        "dst-content-type" : "json",
+        "dst-port"         : "50000"
+    },
+
+    "network-announcement" : [
+        [ "192.168.1.1", "24" ]
+    ]
+
+}

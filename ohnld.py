@@ -13,6 +13,7 @@ import signal
 import os
 import uuid
 import json
+import zlib
 
 
 # don't recognize own mcast transmissions
@@ -22,8 +23,8 @@ MCAST_LOOP = 0
 # For communication with separated thread (e.g. to use dbus-glib)
 # janus queue can be used: https://pypi.python.org/pypi/janus
 
-# ident to drop all non-mcast-discovery-daemon applications.
-IDENT = "FOO".encode('ascii')
+# ident to drop all non-RouTinG applications.
+IDENT = "RTG".encode('ascii')
 
 SECRET_COOKIE = str.encode(str(uuid.uuid4()))
 
@@ -70,26 +71,38 @@ def cb_v4_rx(fd, queue):
         sys.stderr.write("queue overflow, strange things happens")
 
 
-def create_payload():
+def create_payload_data(conf):
+    return "xxxx".encode('ascii')
+
+def create_payload_header(data_len):
     ident = IDENT
     assert len(IDENT) == 3
     data = SECRET_COOKIE
-    data_len = len(data)
     head = struct.pack('>I', data_len)
-    return ident + head + data
+    return ident + head
+
+def create_payload(conf):
+    payload = create_payload_data(conf)
+    header = create_payload_header(len(payload))
+    return header + payload
+
 
 def parse_payload(raw):
-    if len(raw) < 3 + 1 + 1:
+    if len(raw) < len(IDENT) + 4:
         # check for minimal length
-        # ident(3) + size(>=1) + payload(>=1)
-        return False, None, None, None
+        # ident(3) + size(>=4) + payload(>=1)
+        print("Header to short")
+        return False
     ident = raw[0:3]
     if ident != IDENT:
         #print("ident wrong: expect:{} received:{}".format(IDENT, ident))
-        return False, None, None, None
+        return False
 
     # ok, packet seems to come from mcast-discovery-daemon
     size = struct.unpack('>I', raw[3:7])[0]
+    print("size:")
+    print(size)
+    return True
     cookie = raw[7:]
     #print(size)
     #print("secret cookie: own:{} received:{}".format(SECRET_COOKIE, cookie))
@@ -107,7 +120,7 @@ async def tx_v4(fd, conf):
     interval = float(conf['core']['tx-interval'])
     while True:
         try:
-            data = create_payload()
+            data = create_payload(conf)
             fd.sendto(data, (addr, port))
             print("TX")
         except Exception as e:
@@ -115,105 +128,17 @@ async def tx_v4(fd, conf):
         await asyncio.sleep(interval)
 
 
-
-def update_db(dbx, message_ok, msg, raw_msg, cookie):
-    if not message_ok:
-        dbx['stats']['packets-corrupt'] += 1
-        return
-    if cookie not in dbx['stats']['neighbors']:
-        dbx['stats']['neighbors'][cookie] = True
-    dbx['stats']['packets-received'] += 1
-    dbx['stats']['bytes-received'] += len(raw_msg)
-    proto = msg[0]
-    ip_src_addr = msg[2][0]
-    ip_src_port = msg[2][1]
-
-    db = dbx['data']
-    if ip_src_addr not in db:
-        db[ip_src_addr] = dict()
-        db[ip_src_addr]['network-protocol'] = msg[0]
-        db[ip_src_addr]['first-seen'] = time.time()
-        db[ip_src_addr]['received-messages'] = 0
-    db[ip_src_addr]['last-seen'] = time.time()
-    db[ip_src_addr]['received-messages'] += 1
-    db[ip_src_addr]['source-ports'] = ip_src_port
-
-
-def display_time(seconds, granularity=2):
-    result = []
-    intervals = (
-            ('weeks', 604800),
-            ('days',   86400),
-            ('hours',   3600),
-            ('minutes',   60),
-            ('seconds',    1),
-    )
-
-    if seconds <= 1.0:
-        return "just now"
-
-    for name, count in intervals:
-        value = seconds // count
-        if value:
-            seconds -= value * count
-            if value == 1:
-                name = name.rstrip('s')
-            result.append("{} {} ".format(value, name))
-    return ', '.join(result[:granularity]) + " ago"
-
-
-def print_db(db):
-    return
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    
-    if not sys.stdout.isatty():
-        HEADER = OKBLUE = OKGREEN = WARNING = FAIL = ENDC = ''
-
-    print("\033c")
-    sys.stdout.write("{}Number of Neighbors: {}{} (include outdated neighors)\n".format(WARNING, len(db['stats']['neighbors']), ENDC))
-    sys.stdout.write("Received: packets:{}, byte:{}, corrupt:{}\n\n".format(
-                     db['stats']['packets-received'], db['stats']['bytes-received'], db['stats']['packets-corrupt']))
-    for key, value in db['data'].items():
-        sys.stdout.write("{}{}{}\n".format(OKGREEN, key, ENDC))
-        now = time.time()
-        last_seen_delta = display_time(now - value['last-seen'])
-        fist_seen_delta = display_time(now - value['first-seen'])
-        sys.stdout.write("\tLast seen:  {}\n".format(last_seen_delta))
-        sys.stdout.write("\tFirst seen: {}\n".format(fist_seen_delta))
-        sys.stdout.write("\tSource port: {}\n".format(value['source-ports']))
-        sys.stdout.write("\tReceived messages: {}\n".format(value['received-messages']))
-        print("\n")
-
-def init_stats_db():
-    stats = dict()
-    stats['packets-received'] = 0
-    stats['bytes-received'] = 0
-    stats['packets-corrupt'] = 0
-    stats['neighbors'] = dict()
-    return stats
-
-
 async def print_stats(queue):
-    db = dict()
-    db['data'] = dict()
-    db['stats'] = init_stats_db()
     while True:
         entry = await queue.get()
         data = entry[1]
-        ok, own, parsed_data, cookie = parse_payload(data)
-        if not own:
-            update_db(db, ok, entry, data, cookie)
-        print_db(db)
+        parse_payload(data)
 
 
 def ask_exit(signame, loop):
     sys.stderr.write("got signal %s: exit\n" % signame)
     loop.stop()
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -223,6 +148,7 @@ def parse_args():
         print("Configuration required, please specify a valid file path, exiting now")
         sys.exit(1)
     return args
+
 
 def load_configuration_file(args):
     with open(args.configuration) as json_data:

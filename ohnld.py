@@ -73,16 +73,20 @@ def cb_v4_rx(fd, queue):
     except asyncio.queues.QueueFull:
         sys.stderr.write("queue overflow, strange things happens")
 
+def create_payload_routing(conf, data):
+    if "network-announcement" in conf:
+        data["hna"] = conf["network-announcement"]
 
 def create_payload_data(conf):
     data = {}
     data["cookie"] = SECRET_COOKIE
-    data["Ä"] = "Ü"
+    create_payload_routing(conf, data)
     json_data = json.dumps(data)
     byte_stream = str.encode(json_data)
     compressed = zlib.compress(byte_stream, ZIP_COMPRESSION_LEVEL)
     print("compression stats: before {}byte, after compression {}byte".format(len(byte_stream), len(compressed)))
     return compressed
+
 
 def create_payload_header(data_len):
     ident = IDENT
@@ -91,10 +95,12 @@ def create_payload_header(data_len):
     head = struct.pack('>I', data_len)
     return ident + head
 
+
 def create_payload(conf):
     payload = create_payload_data(conf)
     header = create_payload_header(len(payload))
     return header + payload
+
 
 def parse_payload_header(raw):
     if len(raw) < len(IDENT) + 4:
@@ -108,6 +114,7 @@ def parse_payload_header(raw):
         return False
     return True
 
+
 def parse_payload_data(raw):
     size = struct.unpack('>I', raw[3:7])[0]
     if len(raw) < 7 + size:
@@ -118,10 +125,12 @@ def parse_payload_data(raw):
     data = json.loads(uncompressed_json)
     return True, data
 
+
 def self_check(data):
     if data["cookie"] == SECRET_COOKIE:
         return True
     return False
+
 
 def parse_payload(raw):
     ok = parse_payload_header(raw)
@@ -131,10 +140,7 @@ def parse_payload(raw):
     if not ok: return
 
     self = self_check(data)
-    if self:
-        print("own packet, ignore it")
-        return
-
+    if self: return
 
     print(data)
 
@@ -147,7 +153,6 @@ async def tx_v4(fd, conf):
         try:
             data = create_payload(conf)
             fd.sendto(data, (addr, port))
-            print("TX")
         except Exception as e:
             print(str(e))
         await asyncio.sleep(interval)

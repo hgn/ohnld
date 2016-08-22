@@ -55,18 +55,15 @@ def init_v4_tx_fd(conf):
 
 def cb_v4_rx(fd, queue):
     try:
-        #data, addr = fd.recvfrom(1024)
-        msg, ancdata, flags, addr = fd.recvmsg(1024, 100000)
-        print(ancdata)
-        return
+        data, addr = fd.recvfrom(1024)
     except socket.error as e:
         print('Expection')
     d = []
     d.append("IPv4")
     d.append(data)
     d.append(addr)
-    #print("Messagr from: {}:{}".format(str(addr[0]), str(addr[1])))
-    #print("Message: {!r}".format(data.decode()))
+    print("Message from: {}:{}".format(str(addr[0]), str(addr[1])))
+    print("Message: {!r}".format(data.decode()))
     try:
         queue.put_nowait(d)
     except asyncio.queues.QueueFull:
@@ -112,6 +109,7 @@ async def tx_v4(fd, conf):
         try:
             data = create_payload()
             fd.sendto(data, (addr, port))
+            print("TX")
         except Exception as e:
             print(str(e))
         await asyncio.sleep(interval)
@@ -239,16 +237,12 @@ def conf_init():
 def main():
     conf = conf_init()
 
-
     loop = asyncio.get_event_loop()
     queue = asyncio.Queue(32)
 
     # RX functionality
     fd = init_v4_rx_fd(conf)
-
-
     loop.add_reader(fd, functools.partial(cb_v4_rx, fd, queue))
-
 
     # TX side
     fd = init_v4_tx_fd(conf)

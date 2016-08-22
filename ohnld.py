@@ -26,7 +26,11 @@ MCAST_LOOP = 0
 # ident to drop all non-RouTinG applications.
 IDENT = "RTG".encode('ascii')
 
-SECRET_COOKIE = str.encode(str(uuid.uuid4()))
+# identify this sender
+SECRET_COOKIE = str(uuid.uuid4())
+
+# data compression level
+ZIP_COMPRESSION_LEVEL = 9
 
 
 def init_v4_rx_fd(conf):
@@ -64,7 +68,7 @@ def cb_v4_rx(fd, queue):
     d.append(data)
     d.append(addr)
     print("Message from: {}:{}".format(str(addr[0]), str(addr[1])))
-    print("Message: {!r}".format(data.decode()))
+    #print("Message: {!r}".format(data.decode()))
     try:
         queue.put_nowait(d)
     except asyncio.queues.QueueFull:
@@ -72,7 +76,13 @@ def cb_v4_rx(fd, queue):
 
 
 def create_payload_data(conf):
-    return "xxxx".encode('ascii')
+    data = {}
+    data["cookie"] = SECRET_COOKIE
+    json_data = json.dumps(data)
+    byte_stream = str.encode(json_data)
+    compressed = zlib.compress(byte_stream, ZIP_COMPRESSION_LEVEL)
+    print("compression stats: before {}byte, after compression {}byte".format(len(byte_stream), len(compressed)))
+    return compressed
 
 def create_payload_header(data_len):
     ident = IDENT
@@ -95,16 +105,20 @@ def parse_payload(raw):
         return False
     ident = raw[0:3]
     if ident != IDENT:
-        #print("ident wrong: expect:{} received:{}".format(IDENT, ident))
+        print("ident wrong: expect:{} received:{}".format(IDENT, ident))
         return False
 
     # ok, packet seems to come from mcast-discovery-daemon
     size = struct.unpack('>I', raw[3:7])[0]
     print("size:")
     print(size)
+    data = raw[7:7 + size]
+    uncompressed_json = zlib.decompress(data)
+    data = json.loads(str(uncompressed_json))
+    print(data)
+
+
     return True
-    cookie = raw[7:]
-    #print(size)
     #print("secret cookie: own:{} received:{}".format(SECRET_COOKIE, cookie))
     if cookie == SECRET_COOKIE:
         # own packet, ignore it

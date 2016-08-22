@@ -63,11 +63,11 @@ def cb_v4_rx(fd, queue):
         data, addr = fd.recvfrom(1024)
     except socket.error as e:
         print('Expection')
-    d = []
-    d.append("IPv4")
-    d.append(data)
-    d.append(addr)
-    print("Message from: {}:{}".format(str(addr[0]), str(addr[1])))
+    d = {}
+    d["proto"] = "IPv4"
+    d["src-addr"]  = addr[0]
+    d["src-port"]  = addr[1]
+    d["data"]  = data
     try:
         queue.put_nowait(d)
     except asyncio.queues.QueueFull:
@@ -84,7 +84,7 @@ def create_payload_data(conf):
     json_data = json.dumps(data)
     byte_stream = str.encode(json_data)
     compressed = zlib.compress(byte_stream, ZIP_COMPRESSION_LEVEL)
-    print("compression stats: before {}byte, after compression {}byte".format(len(byte_stream), len(compressed)))
+    print("compression stats: before {} byte - after compression {} byte".format(len(byte_stream), len(compressed)))
     return compressed
 
 
@@ -132,16 +132,17 @@ def self_check(data):
     return False
 
 
-def parse_payload(raw):
-    ok = parse_payload_header(raw)
+def parse_payload(packet):
+    ok = parse_payload_header(packet["data"])
     if not ok: return
 
-    ok, data = parse_payload_data(raw)
+    ok, data = parse_payload_data(packet["data"])
     if not ok: return
 
     self = self_check(data)
     if self: return
 
+    print("Routing packet from {}:{}".format(packet["src-addr"], packet["src-port"]))
     print(data)
 
 
@@ -161,8 +162,7 @@ async def tx_v4(fd, conf):
 async def print_stats(queue):
     while True:
         entry = await queue.get()
-        data = entry[1]
-        parse_payload(data)
+        parse_payload(entry)
 
 
 def ask_exit(signame, loop):

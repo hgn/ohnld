@@ -68,7 +68,6 @@ def cb_v4_rx(fd, queue):
     d.append(data)
     d.append(addr)
     print("Message from: {}:{}".format(str(addr[0]), str(addr[1])))
-    #print("Message: {!r}".format(data.decode()))
     try:
         queue.put_nowait(d)
     except asyncio.queues.QueueFull:
@@ -78,6 +77,7 @@ def cb_v4_rx(fd, queue):
 def create_payload_data(conf):
     data = {}
     data["cookie"] = SECRET_COOKIE
+    data["Ä"] = "Ü"
     json_data = json.dumps(data)
     byte_stream = str.encode(json_data)
     compressed = zlib.compress(byte_stream, ZIP_COMPRESSION_LEVEL)
@@ -96,8 +96,7 @@ def create_payload(conf):
     header = create_payload_header(len(payload))
     return header + payload
 
-
-def parse_payload(raw):
+def parse_payload_header(raw):
     if len(raw) < len(IDENT) + 4:
         # check for minimal length
         # ident(3) + size(>=4) + payload(>=1)
@@ -107,25 +106,37 @@ def parse_payload(raw):
     if ident != IDENT:
         print("ident wrong: expect:{} received:{}".format(IDENT, ident))
         return False
-
-    # ok, packet seems to come from mcast-discovery-daemon
-    size = struct.unpack('>I', raw[3:7])[0]
-    print("size:")
-    print(size)
-    data = raw[7:7 + size]
-    uncompressed_json = zlib.decompress(data)
-    data = json.loads(str(uncompressed_json))
-    print(data)
-
-
     return True
-    #print("secret cookie: own:{} received:{}".format(SECRET_COOKIE, cookie))
-    if cookie == SECRET_COOKIE:
-        # own packet, ignore it
-        #print("own packet, ignore it")
-        return True, True, None, None
 
-    return True, False, None, cookie
+def parse_payload_data(raw):
+    size = struct.unpack('>I', raw[3:7])[0]
+    if len(raw) < 7 + size:
+        print("message seems corrupt")
+        return False, None
+    data = raw[7:7 + size]
+    uncompressed_json = str(zlib.decompress(data), "utf-8")
+    data = json.loads(uncompressed_json)
+    return True, data
+
+def self_check(data):
+    if data["cookie"] == SECRET_COOKIE:
+        return True
+    return False
+
+def parse_payload(raw):
+    ok = parse_payload_header(raw)
+    if not ok: return
+
+    ok, data = parse_payload_data(raw)
+    if not ok: return
+
+    self = self_check(data)
+    if self:
+        print("own packet, ignore it")
+        return
+
+
+    print(data)
 
 
 async def tx_v4(fd, conf):

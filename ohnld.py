@@ -14,6 +14,7 @@ import os
 import uuid
 import json
 import zlib
+import datetime
 
 
 # don't recognize own mcast transmissions
@@ -84,7 +85,7 @@ def create_payload_data(conf):
     json_data = json.dumps(data)
     byte_stream = str.encode(json_data)
     compressed = zlib.compress(byte_stream, ZIP_COMPRESSION_LEVEL)
-    print("compression stats: before {} byte - after compression {} byte".format(len(byte_stream), len(compressed)))
+    #print("compression stats: before {} byte - after compression {} byte".format(len(byte_stream), len(compressed)))
     return compressed
 
 
@@ -162,53 +163,64 @@ async def tx_v4(fd, conf):
 
 def db_new():
     db = {}
-    db["networks"] = {}
+    db["networks"] = []
     return db
 
 def db_entry_update(db_entry, data, prefix):
-    if db_entry[1]["src-ip"] == data["src-addr"]:
+    if db_entry[1]["src-ip"] != data["src-addr"]:
         print("WARNING, seems another router ({}) also announce {}".format(data["src-addr"], prefix))
         db_entry[1]["src-ip"] = data["src-addr"]
+    print("route refresh for {} by {}".format(db_entry[0], data["src-addr"]))
+    db_entry[1]["last-seen"] = datetime.datetime.utcnow()
 
 
-def db_entry_new(db, data):
+def db_entry_new(db, data, prefix):
     entry = []
     entry.append(prefix)
 
     second_element = {}
     second_element["src-ip"] = data["src-addr"]
-    second_element["last-seen"] = time.gmtime()
+    second_element["last-seen"] = datetime.datetime.utcnow()
     entry.append(second_element)
 
     db["networks"].append(entry)
+    print("new route announcement for {} by {}".format(prefix, data["src-addr"]))
 
 
 def update_db(db, data):
-    print(data)
-    return
-    print(data["payload"])
-    return
     if "hna" not in data["payload"]:
         print("no HNA data in payload, ignoring it")
         return
 
     for entry in data["payload"]["hna"]:
+        found = False
         prefix = "{}/{}".format(entry[0], entry[1])
         for db_entry in db["networks"]:
             if prefix == db_entry[0]:
-                db_entry_update(db_entry, data)
-                return
-        # not found, new entry
-        db_entry_new(db, data, prefix)
+                db_entry_update(db_entry, data, prefix)
+                found = True
+        if not found:
+            db_entry_new(db, data, prefix)
 
 
-async def handle_packet(queue, conf):
-    db = db_new()
+async def handle_packet(queue, conf, db):
     while True:
         entry = await queue.get()
         data = parse_payload(entry)
         if data:
             update_db(db, data)
+
+async def db_check_outdated(db, conf):
+    while True:
+        for db_entry in db["networks"]:
+            last_seen_time = db_entry[1]["last-seen"]
+            now = datetime.datetime.utcnow()
+            diff_sec = (now - last_seen_time).total_seconds()
+            if diff_sec > float(conf["core"]["validity-time"]):
+                print("route entry outdated: {}".format(db_entry))
+                db["networks"].remove(db_entry)
+
+        await asyncio.sleep(1)
 
 
 
@@ -239,6 +251,7 @@ def conf_init():
 
 def main():
     conf = conf_init()
+    db = db_new()
 
     loop = asyncio.get_event_loop()
     queue = asyncio.Queue(32)
@@ -252,7 +265,12 @@ def main():
     asyncio.ensure_future(tx_v4(fd, conf))
 
     # Outputter
-    asyncio.ensure_future(handle_packet(queue, conf))
+    asyncio.ensure_future(handle_packet(queue, conf, db))
+
+    # just call a function every n seconds to check for outdated
+    # elements, reduce CPU load instead of add an callback to
+    # every DB entry, which will be more exact - which is not required
+    loop.run_until_complete(db_check_outdated(db, conf))
 
     for signame in ('SIGINT', 'SIGTERM'):
         loop.add_signal_handler(getattr(signal, signame),

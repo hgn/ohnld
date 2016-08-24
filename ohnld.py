@@ -142,9 +142,11 @@ def parse_payload(packet):
     self = self_check(data)
     if self: return
 
-    print("Routing packet from {}:{}".format(packet["src-addr"], packet["src-port"]))
-    print(data)
-
+    ret = {}
+    ret["src-addr"] = packet["src-addr"]
+    ret["src-port"] = packet["src-port"]
+    ret["payload"] = data
+    return ret
 
 async def tx_v4(fd, conf):
     addr     = conf['core']['v4-addr']
@@ -158,11 +160,56 @@ async def tx_v4(fd, conf):
             print(str(e))
         await asyncio.sleep(interval)
 
+def db_new():
+    db = {}
+    db["networks"] = {}
+    return db
 
-async def print_stats(queue):
+def db_entry_update(db_entry, data, prefix):
+    if db_entry[1]["src-ip"] == data["src-addr"]:
+        print("WARNING, seems another router ({}) also announce {}".format(data["src-addr"], prefix))
+        db_entry[1]["src-ip"] = data["src-addr"]
+
+
+def db_entry_new(db, data):
+    entry = []
+    entry.append(prefix)
+
+    second_element = {}
+    second_element["src-ip"] = data["src-addr"]
+    second_element["last-seen"] = time.gmtime()
+    entry.append(second_element)
+
+    db["networks"].append(entry)
+
+
+def update_db(db, data):
+    print(data)
+    return
+    print(data["payload"])
+    return
+    if "hna" not in data["payload"]:
+        print("no HNA data in payload, ignoring it")
+        return
+
+    for entry in data["payload"]["hna"]:
+        prefix = "{}/{}".format(entry[0], entry[1])
+        for db_entry in db["networks"]:
+            if prefix == db_entry[0]:
+                db_entry_update(db_entry, data)
+                return
+        # not found, new entry
+        db_entry_new(db, data, prefix)
+
+
+async def handle_packet(queue, conf):
+    db = db_new()
     while True:
         entry = await queue.get()
-        parse_payload(entry)
+        data = parse_payload(entry)
+        if data:
+            update_db(db, data)
+
 
 
 def ask_exit(signame, loop):
@@ -205,7 +252,7 @@ def main():
     asyncio.ensure_future(tx_v4(fd, conf))
 
     # Outputter
-    asyncio.ensure_future(print_stats(queue))
+    asyncio.ensure_future(handle_packet(queue, conf))
 
     for signame in ('SIGINT', 'SIGTERM'):
         loop.add_signal_handler(getattr(signal, signame),

@@ -5,7 +5,7 @@
 
     "core" : {
         "tx-interval" : "10",
-        "validity-time" : "30",
+        "validity-time" : "30.0",
 
         "terminal-v4-addr": "192.168.1.1",
 
@@ -16,10 +16,11 @@
     },
 
     "update-ipc" : {
-        "host"         : "127.0.0.1",
-        "url"          : "/api/v1/data",
-        "content-type" : "json",
-        "port"         : "50000"
+        "max-update-interval" : "5",
+        "host"                : "127.0.0.1",
+        "url"                 : "/api/v1/route-update",
+        "content-type"        : "json",
+        "port"                : "50000"
     },
 
     "network-announcement" : [

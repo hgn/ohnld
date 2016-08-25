@@ -15,14 +15,13 @@ import uuid
 import json
 import zlib
 import datetime
+import urllib.request
+import urllib.error
 
 
 # don't recognize own mcast transmissions
 # by default, can be changed for debugging
 MCAST_LOOP = 0
-
-# For communication with separated thread (e.g. to use dbus-glib)
-# janus queue can be used: https://pypi.python.org/pypi/janus
 
 # ident to drop all non-RouTinG applications.
 IDENT = "RTG".encode('ascii')
@@ -174,7 +173,7 @@ def db_entry_update(db_entry, data, prefix):
     db_entry[1]["last-seen"] = datetime.datetime.utcnow()
 
 
-def db_entry_new(db, data, prefix):
+def db_entry_new(conf, db, data, prefix):
     entry = []
     entry.append(prefix)
 
@@ -187,7 +186,9 @@ def db_entry_new(db, data, prefix):
     print("new route announcement for {} by {}".format(prefix, data["src-addr"]))
 
 
-def update_db(db, data):
+def update_db(conf, db, data):
+    new_entry = False
+
     if "hna" not in data["payload"]:
         print("no HNA data in payload, ignoring it")
         return
@@ -200,7 +201,11 @@ def update_db(db, data):
                 db_entry_update(db_entry, data, prefix)
                 found = True
         if not found:
-            db_entry_new(db, data, prefix)
+            db_entry_new(conf, db, data, prefix)
+            new_entry = True
+
+    if new_entry:
+        ipc_trigger_update_routes(conf, db)
 
 
 async def handle_packet(queue, conf, db):
@@ -208,10 +213,11 @@ async def handle_packet(queue, conf, db):
         entry = await queue.get()
         data = parse_payload(entry)
         if data:
-            update_db(db, data)
+            update_db(conf, db, data)
 
 async def db_check_outdated(db, conf):
     while True:
+        entry_outdated = False
         for db_entry in db["networks"]:
             last_seen_time = db_entry[1]["last-seen"]
             now = datetime.datetime.utcnow()
@@ -219,10 +225,59 @@ async def db_check_outdated(db, conf):
             if diff_sec > float(conf["core"]["validity-time"]):
                 print("route entry outdated: {}".format(db_entry))
                 db["networks"].remove(db_entry)
+                entry_outdated = True
+
+        if entry_outdated:
+            ipc_trigger_update_routes(conf, db)
 
         await asyncio.sleep(1)
 
+def ipc_send_request(conf, data = None):
+    url = "http://{}{}".format(conf["update-ipc"]["host"], conf["update-ipc"]["url"])
+    user_agent_headers = { 'Content-type': 'application/json',
+                           'Accept':       'application/json' }
 
+    # just ignore any configured system proxy, we don't need
+    # a proxy for localhost communication
+    proxy_support = urllib.request.ProxyHandler({})
+    opener = urllib.request.build_opener(proxy_support)
+    urllib.request.install_opener(opener)
+
+    request = urllib.request.Request(url, data.encode('ascii'), user_agent_headers)
+    try:
+        server_response = urllib.request.urlopen(request).read()
+    except urllib.error.HTTPError as e:
+        print("Failed to reach the IPC server ({}): '{}'".format(url, e.reason))
+        return
+    except urllib.error.URLError as e:
+        print("Failed to reach the IPC server ({}): '{}'".format(url, e.reason))
+        return
+    server_data = json.loads(server_response)
+
+
+def ipc_trigger_update_routes(conf, db):
+    cmd = {}
+    cmd["ip-terminal"] = conf["core"]["terminal-v4-addr"]
+    cmd["routes"] = []
+
+
+    for db_entry in db["networks"]:
+        prefix, prefix_len = db_entry[0].split("/")
+        e = {}
+        e["l2-proto"] = "IPv4"
+        e["prefix"]     = prefix
+        e["prefix-len"] = prefix_len
+        cmd["routes"].append(e)
+
+    cmd_json = json.dumps(cmd)
+    ipc_send_request(conf, cmd_json)
+
+
+async def ipc_regular_update(db, conf):
+    while True:
+        await asyncio.sleep(float(conf["update-ipc"]["max-update-interval"]))
+        print("regular IPC update active")
+        ipc_trigger_update_routes(conf, db)
 
 def ask_exit(signame, loop):
     sys.stderr.write("got signal %s: exit\n" % signame)
@@ -267,10 +322,14 @@ def main():
     # Outputter
     asyncio.ensure_future(handle_packet(queue, conf, db))
 
+    # we regulary transmit
+    asyncio.ensure_future(ipc_regular_update(db, conf))
+
     # just call a function every n seconds to check for outdated
     # elements, reduce CPU load instead of add an callback to
     # every DB entry, which will be more exact - which is not required
-    loop.run_until_complete(db_check_outdated(db, conf))
+    asyncio.ensure_future(db_check_outdated(db, conf))
+
 
     for signame in ('SIGINT', 'SIGTERM'):
         loop.add_signal_handler(getattr(signal, signame),

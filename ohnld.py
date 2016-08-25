@@ -17,6 +17,7 @@ import zlib
 import datetime
 import urllib.request
 import urllib.error
+import addict
 
 
 # don't recognize own mcast transmissions
@@ -233,7 +234,7 @@ async def db_check_outdated(db, conf):
         await asyncio.sleep(1)
 
 def ipc_send_request(conf, data = None):
-    url = "http://{}{}".format(conf["update-ipc"]["host"], conf["update-ipc"]["url"])
+    url = "http://{}:{}{}".format(conf["update-ipc"]["host"], conf["update-ipc"]["port"], conf["update-ipc"]["url"])
     user_agent_headers = { 'Content-type': 'application/json',
                            'Accept':       'application/json' }
 
@@ -252,12 +253,17 @@ def ipc_send_request(conf, data = None):
     except urllib.error.URLError as e:
         print("Failed to reach the IPC server ({}): '{}'".format(url, e.reason))
         return
-    server_data = json.loads(server_response)
+    server_data = addict.Dict(json.loads(str(server_response, "utf-8")))
+    if server_data.status != "ok":
+        print(server_data)
 
 
 def ipc_trigger_update_routes(conf, db):
     cmd = {}
-    cmd["ip-terminal"] = conf["core"]["terminal-v4-addr"]
+    cmd["terminal"] = {}
+    cmd["terminal"]["ip"] = conf["core"]["terminal-v4-addr"]
+    cmd["terminal"]["bandwidth_max"] = "5000 bit/s"
+
     cmd["routes"] = []
 
 
@@ -337,8 +343,8 @@ def main():
 
     try:
         loop.run_forever()
-    finally:
-        loop.close()
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":

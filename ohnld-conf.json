@@ -20,7 +20,7 @@
         "host"                : "127.0.0.1",
         "url"                 : "/api/v1/route-update",
         "content-type"        : "json",
-        "port"                : "50000"
+        "port"                : "51337"
     },
 
     "network-announcement" : [

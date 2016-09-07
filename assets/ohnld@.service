@@ -1,0 +1,11 @@
+[Unit]
+Description=One Hop Neighbor Link Discovery Daemon Service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/bin/ohnld --configuration /etc/ohnld/ohnld-%i.json
+Restart=always
+RestartSec=0
+
+[Install]
+WantedBy=multi-user.target

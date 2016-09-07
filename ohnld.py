@@ -292,7 +292,7 @@ def ask_exit(signame, loop):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--configuration", help="configuration", type=str, default=None)
+    parser.add_argument("-c", "--configuration", help="configuration", type=str, default=None)
     args = parser.parse_args()
     if not args.configuration:
         print("Configuration required, please specify a valid file path, exiting now")

@@ -1,1 +1,1 @@
-addict
+addict>=1.1

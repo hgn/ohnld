@@ -12,8 +12,13 @@
         "v4-addr" : "224.0.1.0",
         "v4-port" : "31001",
         "v4-ttl"  : "10",
-        "v4-out-addr" : "172.16.1.100"
+        "v4-out-addr" : "10.10.10.228"
     },
+
+		"terminal-ipc" : {
+			"url" : "http://localhost:5180/api/v1/interface",
+			"update-interval" : "20"
+		},
 
     "update-ipc" : {
         "max-update-interval" : "5",

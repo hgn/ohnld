@@ -149,6 +149,7 @@ def parse_payload(packet):
     ret["payload"] = data
     return ret
 
+
 async def tx_v4(fd, conf):
     addr     = conf['core']['v4-addr']
     port     = int(conf['core']['v4-port'])
@@ -161,10 +162,12 @@ async def tx_v4(fd, conf):
             print(str(e))
         await asyncio.sleep(interval)
 
+
 def db_new():
     db = {}
     db["networks"] = []
     return db
+
 
 def db_entry_update(db_entry, data, prefix):
     if db_entry[1]["src-ip"] != data["src-addr"]:
@@ -172,6 +175,7 @@ def db_entry_update(db_entry, data, prefix):
         db_entry[1]["src-ip"] = data["src-addr"]
     print("route refresh for {} by {}".format(db_entry[0], data["src-addr"]))
     db_entry[1]["last-seen"] = datetime.datetime.utcnow()
+
 
 
 def db_entry_new(conf, db, data, prefix):
@@ -216,6 +220,7 @@ async def handle_packet(queue, conf, db):
         if data:
             update_db(conf, db, data)
 
+
 async def db_check_outdated(db, conf):
     while True:
         entry_outdated = False
@@ -227,14 +232,50 @@ async def db_check_outdated(db, conf):
                 print("route entry outdated: {}".format(db_entry))
                 db["networks"].remove(db_entry)
                 entry_outdated = True
-
         if entry_outdated:
             ipc_trigger_update_routes(conf, db)
-
         await asyncio.sleep(1)
 
+
+def query_interface_data(db, conf):
+    url = conf["terminal-ipc"]["url"]
+    user_agent_headers = { 'Content-type': 'application/json',
+                           'Accept':       'application/json' }
+    proxy_support = urllib.request.ProxyHandler({})
+    opener = urllib.request.build_opener(proxy_support)
+    urllib.request.install_opener(opener)
+
+    data = dict()
+    tx_data = json.dumps(data).encode('utf-8')
+    request = urllib.request.Request(url, tx_data, user_agent_headers)
+    try:
+        server_response = urllib.request.urlopen(request).read()
+    except urllib.error.HTTPError as e:
+        print("Failed to reach the IPC server ({}): '{}'".format(url, e.reason))
+        return
+    except urllib.error.URLError as e:
+        print("Failed to reach the IPC server ({}): '{}'".format(url, e.reason))
+        return
+    server_data = json.loads(str(server_response, "utf-8"))
+    print("Answer IPC:")
+    print(server_data)
+
+
+def check_interface_data(db, conf):
+    data = query_interface_data(db, conf)
+
+
+
+async def terminal_check_interface(db, conf):
+    update_interval = int(conf['terminal-ipc']['update-interval'])
+    while True:
+        check_interface_data(db, conf)
+        await asyncio.sleep(update_interval)
+
+
 def ipc_send_request(conf, data = None):
-    url = "http://{}:{}{}".format(conf["update-ipc"]["host"], conf["update-ipc"]["port"], conf["update-ipc"]["url"])
+    url = "http://{}:{}{}".format(conf["update-ipc"]["host"],
+            conf["update-ipc"]["port"], conf["update-ipc"]["url"])
     user_agent_headers = { 'Content-type': 'application/json',
                            'Accept':       'application/json' }
 
@@ -265,7 +306,6 @@ def ipc_trigger_update_routes(conf, db):
     cmd["terminal"]["bandwidth_max"] = "5000 bit/s"
 
     cmd["routes"] = []
-
 
     for db_entry in db["networks"]:
         prefix, prefix_len = db_entry[0].split("/")
@@ -326,15 +366,18 @@ def main():
     asyncio.ensure_future(tx_v4(fd, conf))
 
     # Outputter
-    asyncio.ensure_future(handle_packet(queue, conf, db))
+    #asyncio.ensure_future(handle_packet(queue, conf, db))
 
     # we regulary transmit
-    asyncio.ensure_future(ipc_regular_update(db, conf))
+    #asyncio.ensure_future(ipc_regular_update(db, conf))
 
     # just call a function every n seconds to check for outdated
     # elements, reduce CPU load instead of add an callback to
     # every DB entry, which will be more exact - which is not required
-    asyncio.ensure_future(db_check_outdated(db, conf))
+    #asyncio.ensure_future(db_check_outdated(db, conf))
+
+    # read terminal ip address
+    asyncio.ensure_future(terminal_check_interface(db, conf))
 
 
     for signame in ('SIGINT', 'SIGTERM'):

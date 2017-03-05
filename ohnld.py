@@ -39,9 +39,9 @@ def init_v4_rx_fd(conf):
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     if hasattr(sock, "SO_REUSEPORT"):
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-    
+
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, MCAST_LOOP)
-    
+
     sock.bind(('', int(conf['core']['v4-port'])))
     host = socket.gethostbyname(socket.gethostname())
     sock.setsockopt(socket.SOL_IP, socket.IP_MULTICAST_IF, socket.inet_aton(host))
@@ -332,7 +332,7 @@ def ask_exit(signame, loop):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-c", "--configuration", help="configuration", type=str, default=None)
+    parser.add_argument("-f", "--configuration", help="configuration", type=str, default=None)
     args = parser.parse_args()
     if not args.configuration:
         print("Configuration required, please specify a valid file path, exiting now")

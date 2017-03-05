@@ -214,6 +214,9 @@ def db_entry_new(conf, db, data, prefix):
 
 def save_auxiliary_data(db, data):
     src_ip = data["src-addr"]
+    if not 'auxiliary-data' in data:
+        print("no auxiliary-data section in received OHNDL packet")
+        return
     db['auxiliary-data'][src_ip] = data['auxiliary-data']
 
 

@@ -343,9 +343,11 @@ def ipc_trigger_update_routes(conf, db):
     """ called when we receive new information from
         our nieghbors """
     cmd = {}
+    # this is the local terminal which received infos from
+    # other terminals via OHNDL.
     cmd["terminal"] = {}
-    cmd["terminal"]["ip"] = conf["core"]["terminal-v4-addr"]
-    cmd["terminal"]["bandwidth_max"] = "5000 bit/s"
+    cmd["terminal"]["ip-eth-v4"] = conf["core"]["terminal-v4-addr"]
+    cmd["terminal"]["bandwidth-max"] = conf["core"]["terminal-bandwith-max"]
 
     cmd["routes"] = []
 
@@ -355,7 +357,17 @@ def ipc_trigger_update_routes(conf, db):
         e["l2-proto"] = "IPv4"
         e["prefix"]     = prefix
         e["prefix-len"] = prefix_len
+        e['originator-ohndl-addr-v4'] = db_entry[1]["src-ip"]
         cmd["routes"].append(e)
+
+    cmd['terminal-air-ip-list'] = list()
+    for k, v in db['auxiliary-data'].items():
+        d = dict()
+        ip_router_addr = k
+        ip_terminal_air = v['terminal-v4-addr-air']
+        d['router-addr-v4'] = ip_router_addr
+        d['terminal-air-addr-v4'] = ip_terminal_air
+        cmd['terminal-air-ip-list'].append(d)
 
     cmd_json = json.dumps(cmd)
     ok, error = ipc_send_request(conf, cmd_json)

@@ -8,6 +8,7 @@
         "validity-time" : "30.0",
 
         "terminal-v4-addr": "192.168.1.1",
+        "terminal-bandwith-max": "5000 bit/s",
 
         "v4-addr" : "224.0.1.0",
         "v4-port" : "31001",

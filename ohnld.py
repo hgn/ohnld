@@ -74,9 +74,11 @@ def cb_v4_rx(fd, queue):
     except asyncio.queues.QueueFull:
         sys.stderr.write("queue overflow, strange things happens")
 
+
 def create_payload_routing(conf, data):
     if "network-announcement" in conf:
         data["hna"] = conf["network-announcement"]
+
 
 def create_payload_auxiliary_data(conf, db, data):
 	data['auxiliary-data'] = {}
@@ -174,7 +176,16 @@ async def tx_v4(fd, conf, db):
 
 def db_new():
     db = {}
+    # networks we learn from our neighbors via OHNDL
     db["networks"] = list()
+
+    # auxiliary data we learn from our neighbors like
+    # air ip address via OHNDL
+    db['auxiliary-data'] = dict()
+
+    # terminal data we learn from our terminal
+    # directly, this is why this data is stored here
+    # and not at conf element
     db['terminal-data'] = dict()
     db['terminal-data']['ipv4-addr-air'] = None
     return db
@@ -188,7 +199,6 @@ def db_entry_update(db_entry, data, prefix):
     db_entry[1]["last-seen"] = datetime.datetime.utcnow()
 
 
-
 def db_entry_new(conf, db, data, prefix):
     entry = []
     entry.append(prefix)
@@ -200,6 +210,11 @@ def db_entry_new(conf, db, data, prefix):
 
     db["networks"].append(entry)
     print("new route announcement for {} by {}".format(prefix, data["src-addr"]))
+
+
+def save_auxiliary_data(db, data):
+    src_ip = data["src-addr"]
+    db['auxiliary-data'][src_ip] = data['auxiliary-data']
 
 
 def update_db(conf, db, data):
@@ -219,6 +234,8 @@ def update_db(conf, db, data):
         if not found:
             db_entry_new(conf, db, data, prefix)
             new_entry = True
+
+    save_auxiliary_data(db, data)
 
     if new_entry:
         ipc_trigger_update_routes(conf, db)

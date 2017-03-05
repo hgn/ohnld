@@ -18,6 +18,7 @@ import datetime
 import urllib.request
 import urllib.error
 import addict
+import pprint
 
 
 # don't recognize own mcast transmissions
@@ -346,6 +347,7 @@ def ipc_trigger_update_routes(conf, db):
     # this is the local terminal which received infos from
     # other terminals via OHNDL.
     cmd["terminal"] = {}
+    cmd["terminal"]["iface-name"] = conf["core"]["iface-name"]
     cmd["terminal"]["ip-eth-v4"] = conf["core"]["terminal-v4-addr"]
     cmd["terminal"]["bandwidth-max"] = conf["core"]["terminal-bandwith-max"]
 
@@ -368,6 +370,8 @@ def ipc_trigger_update_routes(conf, db):
         d['router-addr-v4'] = ip_router_addr
         d['terminal-air-addr-v4'] = ip_terminal_air
         cmd['terminal-air-ip-list'].append(d)
+
+    pprint.pprint(cmd)
 
     cmd_json = json.dumps(cmd)
     ok, error = ipc_send_request(conf, cmd_json)

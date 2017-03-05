@@ -81,9 +81,10 @@ def create_payload_routing(conf, data):
 
 
 def create_payload_auxiliary_data(conf, db, data):
-	data['auxiliary-data'] = {}
-	if "terminal-data" in db and 'addr-air-v4' in db["terminal-data"]:
-		data['auxiliary-data']['terminal-v4-addr-air'] = db["terminal-data"]['addr-air-v4']
+    data['auxiliary-data'] = {}
+    if "terminal-data" in db and 'addr-air-v4' in db["terminal-data"]:
+        data['auxiliary-data']['terminal-v4-addr-air'] = db["terminal-data"]['addr-air-v4']
+    print(data)
 
 
 def create_payload_data(conf, db):

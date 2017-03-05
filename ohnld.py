@@ -84,7 +84,6 @@ def create_payload_auxiliary_data(conf, db, data):
     data['auxiliary-data'] = {}
     if "terminal-data" in db and 'addr-air-v4' in db["terminal-data"]:
         data['auxiliary-data']['terminal-v4-addr-air'] = db["terminal-data"]['addr-air-v4']
-    print(data)
 
 
 def create_payload_data(conf, db):
@@ -215,10 +214,12 @@ def db_entry_new(conf, db, data, prefix):
 
 def save_auxiliary_data(db, data):
     src_ip = data["src-addr"]
-    if not 'auxiliary-data' in data:
+    if not 'auxiliary-data' in data['payload']:
         print("no auxiliary-data section in received OHNDL packet")
         return
-    db['auxiliary-data'][src_ip] = data['auxiliary-data']
+    db['auxiliary-data'][src_ip] = data['payload']['auxiliary-data']
+    print("save auxiliary data from {}:".format(src_ip))
+    print("  {}".format(data['payload']['auxiliary-data']))
 
 
 def update_db(conf, db, data):

@@ -78,10 +78,17 @@ def create_payload_routing(conf, data):
     if "network-announcement" in conf:
         data["hna"] = conf["network-announcement"]
 
-def create_payload_data(conf):
+def create_payload_auxiliary_data(conf, db, data):
+	data['auxiliary-data'] = {}
+	if "terminal-data" in db and 'addr-air-v4' in db["terminal-data"]:
+		data['auxiliary-data']['terminal-v4-addr-air'] = db["terminal-data"]['addr-air-v4']
+
+
+def create_payload_data(conf, db):
     data = {}
     data["cookie"] = SECRET_COOKIE
     create_payload_routing(conf, data)
+    create_payload_auxiliary_data(conf, db, data)
     json_data = json.dumps(data)
     byte_stream = str.encode(json_data)
     compressed = zlib.compress(byte_stream, ZIP_COMPRESSION_LEVEL)
@@ -97,8 +104,8 @@ def create_payload_header(data_len):
     return ident + head
 
 
-def create_payload(conf):
-    payload = create_payload_data(conf)
+def create_payload(conf, db):
+    payload = create_payload_data(conf, db)
     header = create_payload_header(len(payload))
     return header + payload
 
@@ -150,14 +157,16 @@ def parse_payload(packet):
     return ret
 
 
-async def tx_v4(fd, conf):
+async def tx_v4(fd, conf, db):
     addr     = conf['core']['v4-addr']
     port     = int(conf['core']['v4-port'])
     interval = float(conf['core']['tx-interval'])
     while True:
         try:
-            data = create_payload(conf)
-            fd.sendto(data, (addr, port))
+            data = create_payload(conf, db)
+            ret = fd.sendto(data, (addr, port))
+            emsg = "transmitted OHNDL message via {}:{} of size {}"
+            print(emsg.format(addr, port, ret))
         except Exception as e:
             print(str(e))
         await asyncio.sleep(interval)
@@ -165,7 +174,9 @@ async def tx_v4(fd, conf):
 
 def db_new():
     db = {}
-    db["networks"] = []
+    db["networks"] = list()
+    db['terminal-data'] = dict()
+    db['terminal-data']['ipv4-addr-air'] = None
     return db
 
 
@@ -251,18 +262,24 @@ def query_interface_data(db, conf):
     try:
         server_response = urllib.request.urlopen(request).read()
     except urllib.error.HTTPError as e:
-        print("Failed to reach the IPC server ({}): '{}'".format(url, e.reason))
-        return
+        print("Failed to reach the route-manager ({}): '{}'".format(url, e.reason))
+        return None
     except urllib.error.URLError as e:
-        print("Failed to reach the IPC server ({}): '{}'".format(url, e.reason))
-        return
+        print("Failed to reach the route-manager ({}): '{}'".format(url, e.reason))
+        return None
     server_data = json.loads(str(server_response, "utf-8"))
     print("Answer IPC:")
     print(server_data)
+    return server_data
 
 
 def check_interface_data(db, conf):
     data = query_interface_data(db, conf)
+    if data == None:
+        return
+    if type(data) is not str:
+        raise Exception("ipv4 terminal air addr must be string")
+    db['terminal-data']['ipv4-addr-air'] = addr
 
 
 
@@ -289,17 +306,20 @@ def ipc_send_request(conf, data = None):
     try:
         server_response = urllib.request.urlopen(request).read()
     except urllib.error.HTTPError as e:
-        print("Failed to reach the IPC server ({}): '{}'".format(url, e.reason))
-        return
+        print("Failed to reach the route-manager ({}): '{}'".format(url, e.reason))
+        return False, e.reason
     except urllib.error.URLError as e:
-        print("Failed to reach the IPC server ({}): '{}'".format(url, e.reason))
-        return
+        print("Failed to reach the route-manager ({}): '{}'".format(url, e.reason))
+        return False, e.reason
     server_data = addict.Dict(json.loads(str(server_response, "utf-8")))
     if server_data.status != "ok":
-        print(server_data)
+        return False, server_data
+    return True, None
 
 
 def ipc_trigger_update_routes(conf, db):
+    """ called when we receive new information from
+        our nieghbors """
     cmd = {}
     cmd["terminal"] = {}
     cmd["terminal"]["ip"] = conf["core"]["terminal-v4-addr"]
@@ -316,13 +336,13 @@ def ipc_trigger_update_routes(conf, db):
         cmd["routes"].append(e)
 
     cmd_json = json.dumps(cmd)
-    ipc_send_request(conf, cmd_json)
+    ok, error = ipc_send_request(conf, cmd_json)
+    if ok: print("updated sucessfully route-manager")
 
 
 async def ipc_regular_update(db, conf):
     while True:
         await asyncio.sleep(float(conf["update-ipc"]["max-update-interval"]))
-        print("regular IPC update active")
         ipc_trigger_update_routes(conf, db)
 
 def ask_exit(signame, loop):
@@ -350,9 +370,19 @@ def conf_init():
     return load_configuration_file(args)
 
 
+def db_set_configuration_values(db, conf):
+    if not "terminal-data" in conf:
+        return
+    if not "addr-air-v4" in conf['terminal-data']:
+        return
+    db["terminal-data"]['addr-air-v4'] = conf['terminal-data']['addr-air-v4']
+
+
 def main():
+    sys.stderr.write("OHNLD - 2016,2017\n")
     conf = conf_init()
     db = db_new()
+    db_set_configuration_values(db, conf)
 
     loop = asyncio.get_event_loop()
     queue = asyncio.Queue(32)
@@ -363,21 +393,21 @@ def main():
 
     # TX side
     fd = init_v4_tx_fd(conf)
-    asyncio.ensure_future(tx_v4(fd, conf))
+    asyncio.ensure_future(tx_v4(fd, conf, db))
 
     # Outputter
-    #asyncio.ensure_future(handle_packet(queue, conf, db))
+    asyncio.ensure_future(handle_packet(queue, conf, db))
 
     # we regulary transmit
-    #asyncio.ensure_future(ipc_regular_update(db, conf))
+    asyncio.ensure_future(ipc_regular_update(db, conf))
 
     # just call a function every n seconds to check for outdated
     # elements, reduce CPU load instead of add an callback to
     # every DB entry, which will be more exact - which is not required
-    #asyncio.ensure_future(db_check_outdated(db, conf))
+    asyncio.ensure_future(db_check_outdated(db, conf))
 
     # read terminal ip address
-    asyncio.ensure_future(terminal_check_interface(db, conf))
+    #asyncio.ensure_future(terminal_check_interface(db, conf))
 
 
     for signame in ('SIGINT', 'SIGTERM'):

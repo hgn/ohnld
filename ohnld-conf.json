@@ -15,22 +15,26 @@
         "v4-out-addr" : "10.10.10.228"
     },
 
-		"terminal-ipc" : {
-			"url" : "http://localhost:5180/api/v1/interface",
-			"update-interval" : "20"
-		},
+    "terminal-ipc" : {
+        "url" : "http://localhost:5180/api/v1/interface",
+        "update-interval" : "20"
+    },
 
     "update-ipc" : {
         "max-update-interval" : "5",
         "host"                : "127.0.0.1",
-        "url"                 : "/api/v1/route-update",
+        "url"                 : "/api/v1/underlay-route-full-dynamic",
         "content-type"        : "json",
-        "port"                : "51337"
+        "port"                : "16001"
     },
 
     "network-announcement" : [
         [ "192.168.1.0", "24" ],
         [ "23.23.23.0", "24" ]
-    ]
+    ],
+
+    "terminal-data" : {
+        "addr-air-v4" : "192.166.10.10"
+    }
 
 }

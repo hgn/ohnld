@@ -7,14 +7,14 @@
         "tx-interval" : "10",
         "validity-time" : "30.0",
 
-        "iface-name" : "eth0",
+        "iface-name" : "term00",
         "terminal-v4-addr": "192.168.1.1",
         "terminal-bandwith-max": "5000 bit/s",
 
-        "v4-addr" : "224.0.1.0",
-        "v4-port" : "31001",
-        "v4-ttl"  : "10",
-        "v4-out-addr" : "10.10.10.228"
+        "v4-mcast-addr"   : "224.0.0.1",
+        "v4-mcast-port"   : "31001",
+        "v4-mcast-ttl"    : "10",
+        "v4-unicast-addr" : "10.2.101.1"
     },
 
     "terminal-ipc" : {
@@ -31,7 +31,7 @@
     },
 
     "network-announcement" : [
-        [ "192.168.1.0", "24" ]
+        [ "10.2.101.0", "29" ]
     ],
 
     "terminal-data" : {

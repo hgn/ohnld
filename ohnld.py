@@ -17,7 +17,6 @@ import zlib
 import datetime
 import urllib.request
 import urllib.error
-import addict
 import pprint
 
 
@@ -43,11 +42,11 @@ def init_v4_rx_fd(conf):
 
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, MCAST_LOOP)
 
-    sock.bind(('', int(conf['core']['v4-port'])))
+    sock.bind(('', int(conf['core']['v4-mcast-port'])))
     host = socket.gethostbyname(socket.gethostname())
     sock.setsockopt(socket.SOL_IP, socket.IP_MULTICAST_IF, socket.inet_aton(host))
 
-    mreq = struct.pack("4sl", socket.inet_aton(conf['core']['v4-addr']), socket.INADDR_ANY)
+    mreq = socket.inet_aton(conf['core']['v4-mcast-addr']) + socket.inet_aton(conf['core']['v4-unicast-addr'])
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
     return sock
 
@@ -55,8 +54,8 @@ def init_v4_rx_fd(conf):
 def init_v4_tx_fd(conf):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, int(conf['core']['v4-ttl']))
-    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(conf['core']['v4-out-addr']))
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, int(conf['core']['v4-mcast-ttl']))
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(conf['core']['v4-unicast-addr']))
     return sock
 
 
@@ -161,8 +160,8 @@ def parse_payload(packet):
 
 
 async def tx_v4(fd, conf, db):
-    addr     = conf['core']['v4-addr']
-    port     = int(conf['core']['v4-port'])
+    addr     = conf['core']['v4-mcast-addr']
+    port     = int(conf['core']['v4-mcast-port'])
     interval = float(conf['core']['tx-interval'])
     while True:
         try:
@@ -334,8 +333,8 @@ def ipc_send_request(conf, data = None):
     except urllib.error.URLError as e:
         print("Failed to reach the route-manager ({}): '{}'".format(url, e.reason))
         return False, e.reason
-    server_data = addict.Dict(json.loads(str(server_response, "utf-8")))
-    if server_data.status != "ok":
+    server_data = json.loads(str(server_response, "utf-8"))
+    if server_data['status'] != "ok":
         return False, server_data
     return True, None
 

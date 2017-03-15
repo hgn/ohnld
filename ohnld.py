@@ -83,7 +83,7 @@ def create_payload_routing(conf, data):
 def create_payload_auxiliary_data(conf, db, data):
     data['auxiliary-data'] = {}
     if "terminal-data" in db and 'addr-air-v4' in db["terminal-data"]:
-        data['auxiliary-data']['terminal-v4-addr-air'] = db["terminal-data"]['addr-air-v4']
+        data['auxiliary-data']['terminal-air-addr-v4'] = db["terminal-data"]['addr-air-v4']
 
 
 def create_payload_data(conf, db):
@@ -348,7 +348,6 @@ def ipc_trigger_update_routes(conf, db):
     cmd["terminal"] = {}
     cmd["terminal"]["iface-name"] = conf["core"]["iface-name"]
     cmd["terminal"]["ip-eth-v4"] = conf["core"]["terminal-v4-addr"]
-    cmd["terminal"]["bandwidth-max"] = conf["core"]["terminal-bandwith-max"]
 
     cmd["routes"] = []
 
@@ -365,7 +364,7 @@ def ipc_trigger_update_routes(conf, db):
     for k, v in db['auxiliary-data'].items():
         d = dict()
         ip_router_addr = k
-        ip_terminal_air = v['terminal-v4-addr-air']
+        ip_terminal_air = v['terminal-air-addr-v4']
         d['router-addr-v4'] = ip_router_addr
         d['terminal-air-addr-v4'] = ip_terminal_air
         cmd['terminal-air-ip-list'].append(d)

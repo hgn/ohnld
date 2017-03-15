@@ -9,7 +9,6 @@
 
         "iface-name" : "term00",
         "terminal-v4-addr": "192.168.1.1",
-        "terminal-bandwith-max": "5000 bit/s",
 
         "v4-mcast-addr"   : "224.0.0.1",
         "v4-mcast-port"   : "31001",

@@ -42,7 +42,7 @@ def init_v4_rx_fd(conf):
 
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, MCAST_LOOP)
 
-    sock.bind(('', int(conf['core']['v4-mcast-port'])))
+    sock.bind((conf['core']['v4-mcast-addr'], int(conf['core']['v4-mcast-port'])))
     host = socket.gethostbyname(socket.gethostname())
     sock.setsockopt(socket.SOL_IP, socket.IP_MULTICAST_IF, socket.inet_aton(host))
 
@@ -76,8 +76,8 @@ def cb_v4_rx(fd, queue):
 
 
 def create_payload_routing(conf, data):
-    if "network-announcement" in conf:
-        data["hna"] = conf["network-announcement"]
+    if "network_announcement" in conf:
+        data["hna"] = conf["network_announcement"]
 
 
 def create_payload_auxiliary_data(conf, db, data):
@@ -313,8 +313,8 @@ async def terminal_check_interface(db, conf):
 
 
 def ipc_send_request(conf, data = None):
-    url = "http://{}:{}{}".format(conf["update-ipc"]["host"],
-            conf["update-ipc"]["port"], conf["update-ipc"]["url"])
+    url = "http://{}:{}{}".format(conf["update_ipc"]["host"],
+            conf["update_ipc"]["port"], conf["update_ipc"]["url"])
     user_agent_headers = { 'Content-type': 'application/json',
                            'Accept':       'application/json' }
 
@@ -378,7 +378,7 @@ def ipc_trigger_update_routes(conf, db):
 
 async def ipc_regular_update(db, conf):
     while True:
-        await asyncio.sleep(float(conf["update-ipc"]["max-update-interval"]))
+        await asyncio.sleep(float(conf["update_ipc"]["max-update-interval"]))
         ipc_trigger_update_routes(conf, db)
 
 def ask_exit(signame, loop):
@@ -397,8 +397,9 @@ def parse_args():
 
 
 def load_configuration_file(args):
-    with open(args.configuration) as json_data:
-        return json.load(json_data)
+    config = dict()
+    exec(open(args.configuration).read(), config)
+    return config
 
 
 def conf_init():
@@ -407,11 +408,11 @@ def conf_init():
 
 
 def db_set_configuration_values(db, conf):
-    if not "terminal-data" in conf:
+    if not "terminal_data" in conf:
         return
-    if not "addr-air-v4" in conf['terminal-data']:
+    if not "addr-air-v4" in conf['terminal_data']:
         return
-    db["terminal-data"]['addr-air-v4'] = conf['terminal-data']['addr-air-v4']
+    db["terminal-data"]['addr-air-v4'] = conf['terminal_data']['addr-air-v4']
 
 
 def main():

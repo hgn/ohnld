@@ -1,5 +1,6 @@
-common = dict()
-common['verbose'] = 'debug'
+common = {
+        'verbose' : 'debug'
+}
 
 core = dict()
 core['tx-interval'] = "10"
@@ -25,7 +26,11 @@ update_ipc['content-type'] = "json"
 update_ipc['port'] = "16001"
 
 network_announcement = list()
+# the submitted local interface ip prefix
 network_announcement.append([ "10.2.101.0", "29" ])
 
 terminal_data = dict()
+
+# the initial air address. is later updated by
+# quering the interface
 terminal_data['addr-air-v4'] = "192.166.10.10"

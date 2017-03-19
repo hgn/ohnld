@@ -46,7 +46,7 @@ def init_v4_rx_fd(conf):
     host = socket.gethostbyname(socket.gethostname())
     sock.setsockopt(socket.SOL_IP, socket.IP_MULTICAST_IF, socket.inet_aton(host))
 
-    mreq = socket.inet_aton(conf['core']['v4-mcast-addr']) + socket.inet_aton(conf['core']['v4-unicast-addr'])
+    mreq = socket.inet_aton(conf['core']['v4-mcast-addr']) + socket.inet_aton(conf['l0_top_addr_v4'])
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
     return sock
 
@@ -55,7 +55,7 @@ def init_v4_tx_fd(conf):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, int(conf['core']['v4-mcast-ttl']))
-    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(conf['core']['v4-unicast-addr']))
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(conf['l0_top_addr_v4']))
     return sock
 
 
@@ -81,8 +81,13 @@ def create_payload_routing(conf, data):
         return
     if not 'l0_prefix_len_v4' in conf:
         raise Exception("prefix configured but no prefixlen")
+    data['l0_top_addr_v4'] = conf['l0_top_addr_v4']
     data['l0_prefix_v4'] = conf['l0_prefix_v4']
     data['l0_prefix_len_v4'] = conf['l0_prefix_len_v4']
+    data['l0_bottom_addr_v4'] = conf['l0_bottom_addr_v4']
+    # l1-top-addr-v4 is stored in db, not conf because it can 
+    # be changed dynamically
+    data['l1-top-addr-v4'] = db["terminal-data"]['l1-top-addr-v4']
 
 
 def create_payload_auxiliary_data(conf, db, data):
@@ -352,8 +357,8 @@ def ipc_trigger_update_routes(conf, db):
     # this is the local terminal which received infos from
     # other terminals via OHNDL.
     cmd["terminal"] = {}
-    cmd["terminal"]["iface-name"] = conf["core"]["iface-name"]
-    cmd["terminal"]["ip-eth-v4"] = conf["l0_bottom_addr_v4"]
+    cmd["terminal"]["pl-iface-name"] = conf["iface_name"]
+    cmd["terminal"]["pl-l0-bottom-addr-v4"] = conf["l0_bottom_addr_v4"]
 
     cmd["routes"] = []
 

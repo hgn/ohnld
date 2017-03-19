@@ -75,36 +75,33 @@ def cb_v4_rx(fd, queue):
         sys.stderr.write("queue overflow, strange things happens")
 
 
-def create_payload_routing(conf, data):
+def create_payload_routing(conf, db, data):
     if not 'l0_prefix_v4' in conf:
         print("no network configured")
         return
     if not 'l0_prefix_len_v4' in conf:
         raise Exception("prefix configured but no prefixlen")
     data['l0_top_addr_v4'] = conf['l0_top_addr_v4']
+
     data['l0_prefix_v4'] = conf['l0_prefix_v4']
     data['l0_prefix_len_v4'] = conf['l0_prefix_len_v4']
+
     data['l0_bottom_addr_v4'] = conf['l0_bottom_addr_v4']
     # l1-top-addr-v4 is stored in db, not conf because it can 
     # be changed dynamically
     data['l1-top-addr-v4'] = db["terminal-data"]['l1-top-addr-v4']
-
-
-def create_payload_auxiliary_data(conf, db, data):
-    data['auxiliary-data'] = {}
-    if "terminal-data" in db and 'l1-top-addr-v4' in db["terminal-data"]:
-        data['auxiliary-data']['terminal-air-addr-v4'] = db["terminal-data"]['l1-top-addr-v4']
+    data['l1_top_iface_name'] = conf['l1_top_iface_name']
 
 
 def create_payload_data(conf, db):
     data = {}
     data["cookie"] = SECRET_COOKIE
-    create_payload_routing(conf, data)
-    create_payload_auxiliary_data(conf, db, data)
+    create_payload_routing(conf, db, data)
     json_data = json.dumps(data)
     byte_stream = str.encode(json_data)
     compressed = zlib.compress(byte_stream, ZIP_COMPRESSION_LEVEL)
-    #print("compression stats: before {} byte - after compression {} byte".format(len(byte_stream), len(compressed)))
+    msg = "compression stats: before {} byte - after compression {} byte"
+    print(msg.format(len(byte_stream), len(compressed)))
     return compressed
 
 

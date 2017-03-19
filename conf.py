@@ -27,6 +27,7 @@ l0_prefix_len_v4 = "29"
 # the initial air address. is later updated by
 # quering the interface
 l1_top_addr_v4 = "192.166.10.10"
+l1_top_iface_name = "air0"
 
 
 # collected information is forwarded to the

@@ -231,10 +231,9 @@ def update_db(conf, db, data):
     entry.l0_bottom_addr_v4 = data["payload"]['l0_bottom_addr_v4']
     # layer 1 info
     entry.l1_top_addr_v4 = data["payload"]['l1_top_addr_v4']
-    entry.l1_top_iface_name = data["payload"]['l1_top_iface_name']
 
     for db_entry in db["networks"]:
-        if db_entry == entry.l0_prefix_v4:
+        if db_entry.l0_prefix_v4 == entry.l0_prefix_v4:
             db_entry_update(db_entry)
             return
     # don't found in database
@@ -342,8 +341,9 @@ def ipc_trigger_update_routes(conf, db):
     # this is the local terminal which received infos from
     # other terminals via OHNDL.
     cmd["terminal"] = {}
-    cmd["terminal"]["pl-iface-name"] = conf["iface_name"]
-    cmd["terminal"]["pl-l0-bottom-addr-v4"] = conf["l0_bottom_addr_v4"]
+    cmd["terminal"]["pl_iface_name"] = conf["iface_name"]
+    cmd["terminal"]["pl_l0_bottom_addr_v4"] = conf["l0_bottom_addr_v4"]
+    cmd["terminal"]["pl_p1_top_iface_name"] = conf['l1_top_iface_name']
 
     cmd["neighbors"] = []
 
@@ -355,7 +355,7 @@ def ipc_trigger_update_routes(conf, db):
         e["l0_top_addr_v4"] = entry.l0_top_addr_v4
         e["l0_bottom_addr_v4"] = entry.l0_bottom_addr_v4
         e["l1_top_addr_v4"] = entry.l1_top_addr_v4
-        e["l1_top_iface_name"] = entry.l1_top_iface_name
+        #e["l1_top_iface_name"] = entry.l1_top_iface_name
 
         cmd["neighbors"].append(e)
 

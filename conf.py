@@ -16,21 +16,19 @@ core['v4-unicast-addr'] = "10.10.10.228"
 
 # the address of the terminal, e.g. will
 # the next hop
-core['terminal-v4-addr'] = "10.10.10.1"
+l0_bottom_addr_v4 = "10.10.10.1"
 
 terminal_ipc = dict()
 terminal_ipc['url'] = "http://localhost:5180/api/v1/interface"
 terminal_ipc['update-interval'] = "20"
 
-network_announcement = list()
 # the submitted local interface ip prefix
-network_announcement.append([ "10.2.101.0", "29" ])
-
-terminal_data = dict()
+l0_prefix_v4     = "10.2.101.0"
+l0_prefix_len_v4 = "29"
 
 # the initial air address. is later updated by
 # quering the interface
-terminal_data['addr-air-v4'] = "192.166.10.10"
+l1_top_addr_v4 = "192.166.10.10"
 
 # collected information is forwarded to the
 # following instance

@@ -76,8 +76,13 @@ def cb_v4_rx(fd, queue):
 
 
 def create_payload_routing(conf, data):
-    if "network_announcement" in conf:
-        data["hna"] = conf["network_announcement"]
+    if not 'l0_prefix_v4' in conf:
+        print("no network configured")
+        return
+    if no 'l0_prefix_len_v4' in conf:
+        raise Exception("prefix configured but no prefixlen")
+    data['l0_prefix_v4'] = conf['l0_prefix_v4']
+    data['l0_prefix_len_v4'] = conf['l0_prefix_len_v4']
 
 
 def create_payload_auxiliary_data(conf, db, data):
@@ -225,8 +230,8 @@ def save_auxiliary_data(db, data):
 def update_db(conf, db, data):
     new_entry = False
 
-    if "hna" not in data["payload"]:
-        print("no HNA data in payload, ignoring it")
+    if "l0_prefix_v4" not in data["payload"]:
+        print("no l0_prefix_v4 data in payload, ignoring it")
         return
 
     for entry in data["payload"]["hna"]:
@@ -347,7 +352,7 @@ def ipc_trigger_update_routes(conf, db):
     # other terminals via OHNDL.
     cmd["terminal"] = {}
     cmd["terminal"]["iface-name"] = conf["core"]["iface-name"]
-    cmd["terminal"]["ip-eth-v4"] = conf["core"]["terminal-v4-addr"]
+    cmd["terminal"]["ip-eth-v4"] = conf["l0_bottom_addr_v4"]
 
     cmd["routes"] = []
 
@@ -408,11 +413,9 @@ def conf_init():
 
 
 def db_set_configuration_values(db, conf):
-    if not "terminal_data" in conf:
+    if not "l1_top_addr_v4" in conf:
         return
-    if not "l1-top-addr-v4" in conf['terminal_data']:
-        return
-    db["terminal-data"]['l1-top-addr-v4'] = conf['terminal_data']['l1-top-addr-v4']
+    db["terminal-data"]['l1-top-addr-v4'] = conf['l1_top_addr_v4']
 
 
 def main():

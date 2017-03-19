@@ -79,7 +79,7 @@ def create_payload_routing(conf, data):
     if not 'l0_prefix_v4' in conf:
         print("no network configured")
         return
-    if no 'l0_prefix_len_v4' in conf:
+    if not 'l0_prefix_len_v4' in conf:
         raise Exception("prefix configured but no prefixlen")
     data['l0_prefix_v4'] = conf['l0_prefix_v4']
     data['l0_prefix_len_v4'] = conf['l0_prefix_len_v4']

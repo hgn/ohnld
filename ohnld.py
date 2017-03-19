@@ -33,6 +33,8 @@ SECRET_COOKIE = str(uuid.uuid4())
 # data compression level
 ZIP_COMPRESSION_LEVEL = 9
 
+class DBEntry(object): pass
+
 
 def init_v4_rx_fd(conf):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -81,15 +83,16 @@ def create_payload_routing(conf, db, data):
         return
     if not 'l0_prefix_len_v4' in conf:
         raise Exception("prefix configured but no prefixlen")
-    data['l0_top_addr_v4'] = conf['l0_top_addr_v4']
 
     data['l0_prefix_v4'] = conf['l0_prefix_v4']
     data['l0_prefix_len_v4'] = conf['l0_prefix_len_v4']
 
+    data['l0_top_addr_v4'] = conf['l0_top_addr_v4']
+
     data['l0_bottom_addr_v4'] = conf['l0_bottom_addr_v4']
     # l1-top-addr-v4 is stored in db, not conf because it can 
     # be changed dynamically
-    data['l1-top-addr-v4'] = db["terminal-data"]['l1-top-addr-v4']
+    data['l1_top_addr_v4'] = db["terminal-data"]['l1-top-addr-v4']
     data['l1_top_iface_name'] = conf['l1_top_iface_name']
 
 
@@ -198,60 +201,45 @@ def db_new():
     return db
 
 
-def db_entry_update(db_entry, data, prefix):
-    if db_entry[1]["src-ip"] != data["src-addr"]:
-        print("WARNING, seems another router ({}) also announce {}".format(data["src-addr"], prefix))
-        db_entry[1]["src-ip"] = data["src-addr"]
-    print("route refresh for {} by {}".format(db_entry[0], data["src-addr"]))
-    db_entry[1]["last-seen"] = datetime.datetime.utcnow()
+def db_entry_update(db_entry):
+    db_entry.last_seen = datetime.datetime.utcnow()
 
 
-def db_entry_new(conf, db, data, prefix):
-    entry = []
-    entry.append(prefix)
-
-    second_element = {}
-    second_element["src-ip"] = data["src-addr"]
-    second_element["last-seen"] = datetime.datetime.utcnow()
-    entry.append(second_element)
-
+def db_entry_new(conf, db, entry):
+    entry.last_seen = datetime.datetime.utcnow()
     db["networks"].append(entry)
-    print("new route announcement for {} by {}".format(prefix, data["src-addr"]))
-
-
-def save_auxiliary_data(db, data):
-    src_ip = data["src-addr"]
-    if not 'auxiliary-data' in data['payload']:
-        print("no auxiliary-data section in received OHNDL packet")
-        return
-    db['auxiliary-data'][src_ip] = data['payload']['auxiliary-data']
-    print("save auxiliary data from {}:".format(src_ip))
-    print("  {}".format(data['payload']['auxiliary-data']))
+    print("new route announcement for {} by {}".format(entry, data["src-addr"]))
 
 
 def update_db(conf, db, data):
     new_entry = False
-
     if "l0_prefix_v4" not in data["payload"]:
         print("no l0_prefix_v4 data in payload, ignoring it")
         return
-
     found = False
     prefix     = data["payload"]['l0_prefix_v4']
     prefix_len = data["payload"]['l0_prefix_len_v4']
     prefix_full = "{}/{}".format(prefix, prefix_len)
+
+    entry = DBEntry()
+    entry.src_addr = data["src-addr"]
+    # layer 0 info
+    entry.l0_prefix_v4 = prefix
+    entry.l0_prefix_len_v4 = prefix_len
+    entry.l0_top_addr_v4 = data["payload"]['l0_top_addr_v4']
+    entry.l0_top_addr_v4 = data["payload"]['l0_top_addr_v4']
+    entry.l0_bottom_addr_v4 = data["payload"]['l0_bottom_addr_v4']
+    # layer 1 info
+    entry.l1_top_addr_v4 = data["payload"]['l1_top_addr_v4']
+    entry.l1_top_iface_name = data["payload"]['l1_top_iface_name']
+
     for db_entry in db["networks"]:
-        if prefix_full == db_entry[0]:
-            db_entry_update(db_entry, data, prefix_full)
-            found = True
-    if not found:
-        db_entry_new(conf, db, data, prefix_full)
-        new_entry = True
-
-    save_auxiliary_data(db, data)
-
-    if new_entry:
-        ipc_trigger_update_routes(conf, db)
+        if db_entry == entry.l0_prefix_v4:
+            db_entry_update(db_entry)
+            return
+    # don't found in database
+    db_entry_new(conf, db, entry)
+    ipc_trigger_update_routes(conf, db)
 
 
 async def handle_packet(queue, conf, db):

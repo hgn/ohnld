@@ -341,9 +341,10 @@ def ipc_trigger_update_routes(conf, db):
     # this is the local terminal which received infos from
     # other terminals via OHNDL.
     cmd["terminal"] = {}
-    cmd["terminal"]["pl_iface_name"] = conf["iface_name"]
+    cmd["terminal"]["pl_l0_top_iface_name"] = conf["iface_name"]
+    cmd["terminal"]["pl_l0_top_addr_v4"] = conf["l0_top_addr_v4"]
     cmd["terminal"]["pl_l0_bottom_addr_v4"] = conf["l0_bottom_addr_v4"]
-    cmd["terminal"]["pl_p1_top_iface_name"] = conf['l1_top_iface_name']
+    cmd["terminal"]["pl_l1_top_iface_name"] = conf['l1_top_iface_name']
 
     cmd["neighbors"] = []
 

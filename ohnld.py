@@ -345,25 +345,19 @@ def ipc_trigger_update_routes(conf, db):
     cmd["terminal"]["pl-iface-name"] = conf["iface_name"]
     cmd["terminal"]["pl-l0-bottom-addr-v4"] = conf["l0_bottom_addr_v4"]
 
-    cmd["routes"] = []
+    cmd["neighbors"] = []
 
-    for db_entry in db["networks"]:
-        prefix, prefix_len = db_entry[0].split("/")
+    for entry in db["networks"]:
         e = {}
-        e["l2-proto"] = "IPv4"
-        e["prefix"]     = prefix
-        e["prefix-len"] = prefix_len
-        e['originator-ohndl-addr-v4'] = db_entry[1]["src-ip"]
-        cmd["routes"].append(e)
+        e["l0_prefix_v4"] = entry.l0_prefix_v4
+        e["l0_prefix_len_v4"] = entry.l0_prefix_len_v4
+        e["l0_top_addr_v4"] = entry.l0_top_addr_v4
+        e["l0_top_addr_v4"] = entry.l0_top_addr_v4
+        e["l0_bottom_addr_v4"] = entry.l0_bottom_addr_v4
+        e["l1_top_addr_v4"] = entry.l1_top_addr_v4
+        e["l1_top_iface_name"] = entry.l1_top_iface_name
 
-    cmd['terminal-air-ip-list'] = list()
-    for k, v in db['auxiliary-data'].items():
-        d = dict()
-        ip_router_addr = k
-        ip_terminal_air = v['terminal-air-addr-v4']
-        d['router-addr-v4'] = ip_router_addr
-        d['terminal-air-addr-v4'] = ip_terminal_air
-        cmd['terminal-air-ip-list'].append(d)
+        cmd["neighbors"].append(e)
 
     pprint.pprint(cmd)
 

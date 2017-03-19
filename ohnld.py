@@ -234,16 +234,17 @@ def update_db(conf, db, data):
         print("no l0_prefix_v4 data in payload, ignoring it")
         return
 
-    for entry in data["payload"]["hna"]:
-        found = False
-        prefix = "{}/{}".format(entry[0], entry[1])
-        for db_entry in db["networks"]:
-            if prefix == db_entry[0]:
-                db_entry_update(db_entry, data, prefix)
-                found = True
-        if not found:
-            db_entry_new(conf, db, data, prefix)
-            new_entry = True
+    found = False
+    prefix     = data["payload"]['l0_prefix_v4']
+    prefix_len = data["payload"]['l0_prefix_len_v4']
+    prefix_full = "{}/{}".format(prefix, prefix_len)
+    for db_entry in db["networks"]:
+        if prefix_full == db_entry[0]:
+            db_entry_update(db_entry, data, prefix_full)
+            found = True
+    if not found:
+        db_entry_new(conf, db, data, prefix_full)
+        new_entry = True
 
     save_auxiliary_data(db, data)
 

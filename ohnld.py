@@ -82,8 +82,8 @@ def create_payload_routing(conf, data):
 
 def create_payload_auxiliary_data(conf, db, data):
     data['auxiliary-data'] = {}
-    if "terminal-data" in db and 'addr-air-v4' in db["terminal-data"]:
-        data['auxiliary-data']['terminal-air-addr-v4'] = db["terminal-data"]['addr-air-v4']
+    if "terminal-data" in db and 'l1-top-addr-v4' in db["terminal-data"]:
+        data['auxiliary-data']['terminal-air-addr-v4'] = db["terminal-data"]['l1-top-addr-v4']
 
 
 def create_payload_data(conf, db):
@@ -410,9 +410,9 @@ def conf_init():
 def db_set_configuration_values(db, conf):
     if not "terminal_data" in conf:
         return
-    if not "addr-air-v4" in conf['terminal_data']:
+    if not "l1-top-addr-v4" in conf['terminal_data']:
         return
-    db["terminal-data"]['addr-air-v4'] = conf['terminal_data']['addr-air-v4']
+    db["terminal-data"]['l1-top-addr-v4'] = conf['terminal_data']['l1-top-addr-v4']
 
 
 def main():

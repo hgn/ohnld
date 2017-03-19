@@ -208,7 +208,7 @@ def db_entry_update(db_entry):
 def db_entry_new(conf, db, entry):
     entry.last_seen = datetime.datetime.utcnow()
     db["networks"].append(entry)
-    print("new route announcement for {} by {}".format(entry, data["src-addr"]))
+    print("new route announcement for {} by {}".format(entry, entry.src_addr))
 
 
 def update_db(conf, db, data):
@@ -254,7 +254,7 @@ async def db_check_outdated(db, conf):
     while True:
         entry_outdated = False
         for db_entry in db["networks"]:
-            last_seen_time = db_entry[1]["last-seen"]
+            last_seen_time = db_entry.last_seen
             now = datetime.datetime.utcnow()
             diff_sec = (now - last_seen_time).total_seconds()
             if diff_sec > float(conf["core"]["validity-time"]):

@@ -356,7 +356,6 @@ def ipc_trigger_update_routes(conf, db):
         e["l0_top_addr_v4"] = entry.l0_top_addr_v4
         e["l0_bottom_addr_v4"] = entry.l0_bottom_addr_v4
         e["l1_top_addr_v4"] = entry.l1_top_addr_v4
-        #e["l1_top_iface_name"] = entry.l1_top_iface_name
 
         cmd["neighbors"].append(e)
 
@@ -365,6 +364,41 @@ def ipc_trigger_update_routes(conf, db):
     cmd_json = json.dumps(cmd)
     ok, error = ipc_send_request(conf, cmd_json)
     if ok: print("updated sucessfully route-manager")
+
+
+def terminal_query_l1_top_addr(db, conf):
+    url = conf['terminal_interface_get_url']
+    user_agent_headers = { 'Content-type': 'application/json',
+                           'Accept':       'application/json' }
+    proxy_support = urllib.request.ProxyHandler({})
+    opener = urllib.request.build_opener(proxy_support)
+    urllib.request.install_opener(opener)
+
+    data = dict()
+    data['interface'] = conf['l1_top_iface_name']
+
+    tx_data = json.dumps(data).encode('utf-8')
+    print("Query: {}".format(url))
+    request = urllib.request.Request(url, tx_data, user_agent_headers)
+    try:
+        server_response = urllib.request.urlopen(request).read()
+    except urllib.error.HTTPError as e:
+        print("Failed to reach the route-manager ({}): '{}'".format(url, e.reason))
+        return None
+    except urllib.error.URLError as e:
+        print("Failed to reach the route-manager ({}): '{}'".format(url, e.reason))
+        return None
+    server_data = json.loads(str(server_response, "utf-8"))
+    print("Answer IPC:")
+    print(server_data)
+    return server_data
+
+
+
+async def terminal_query_l1_top_addr_loop(db, conf):
+    while True:
+        await asyncio.sleep(float(conf["terminal_interface_get_interval"]))
+        terminal_query_l1_top_addr(db, conf)
 
 
 async def ipc_regular_update(db, conf):
@@ -426,6 +460,8 @@ def main():
 
     # we regulary transmit
     asyncio.ensure_future(ipc_regular_update(db, conf))
+
+    asyncio.ensure_future(terminal_query_l1_top_addr_loop(db, conf))
 
     # just call a function every n seconds to check for outdated
     # elements, reduce CPU load instead of add an callback to

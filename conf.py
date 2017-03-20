@@ -6,7 +6,7 @@ core = dict()
 core['tx-interval'] = "10"
 core['validity-time'] = 30
 
-iface_name = "term00"
+iface_name = "eth0"
 
 
 # required for operation
@@ -27,7 +27,7 @@ l0_prefix_len_v4 = "29"
 # the initial air address. is later updated by
 # quering the interface
 l1_top_addr_v4 = "192.166.10.10"
-l1_top_iface_name = "air0"
+l1_top_iface_name = "hdr0"
 
 
 # collected information is forwarded to the
@@ -43,4 +43,7 @@ update_ipc['port'] = "16001"
 terminal_ipc = dict()
 terminal_ipc['url'] = "http://localhost:5180/api/v1/interface"
 terminal_ipc['update-interval'] = "20"
+
+terminal_interface_get_url = "http://127.0.0.1:10000/api/v1/address-get"
+terminal_interface_get_interval = 30
 

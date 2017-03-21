@@ -285,9 +285,7 @@ def query_interface_data(db, conf):
         print("Failed to reach the route-manager ({}): '{}'".format(url, e.reason))
         return None
     server_data = json.loads(str(server_response, "utf-8"))
-    print("Answer IPC:")
-    print(server_data)
-    return server_data
+    return server_data["data"]
 
 
 def check_interface_data(db, conf):
@@ -296,7 +294,7 @@ def check_interface_data(db, conf):
         return
     if type(data) is not str:
         raise Exception("ipv4 terminal air addr must be string")
-    db['terminal-data']['ipv4-addr-air'] = addr
+    db['terminal-data']['l1-top-addr-v4'] = addr
 
 
 
